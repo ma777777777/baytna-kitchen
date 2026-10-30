@@ -1,0 +1,69 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ivory: #faf8f2;
+  --color-cream: #f3efe4;
+  --color-sand: #e7e0cf;
+  --color-sage: #71846b;
+  --color-sage-soft: #e3e9df;
+  --color-olive: #344736;
+  --color-terra: #cb8d70;
+  --color-terra-soft: #f6e6dd;
+  --color-terra-deep: #9c5a3c;
+  --color-ink: #2a2a28;
+  --color-muted: #6b6a63;
+  --font-sans: 'Rubik', system-ui, -apple-system, 'Segoe UI', 'Noto Sans Arabic', sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Comfortable Arabic line height */
+:root[dir='rtl'] body {
+  line-height: 1.6;
+}
+
+button,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Flip directional icons in RTL */
+:root[dir='rtl'] .flip-rtl {
+  transform: scaleX(-1);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sheet-in {
+  animation: sheet-in 0.22s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in {
+    animation: none;
+  }
+}
