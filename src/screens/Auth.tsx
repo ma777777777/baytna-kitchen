@@ -11,7 +11,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="safe-top mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-5 py-10">
       <div className="text-center">
-        <img src="/icon-192.png" alt="" className="mx-auto mb-3 size-20 rounded-3xl" />
+        <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" className="mx-auto mb-3 size-20 rounded-3xl" />
         <h1 className="text-3xl font-semibold text-olive">
           {t('appName')}
         </h1>

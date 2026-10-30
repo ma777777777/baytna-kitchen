@@ -217,7 +217,7 @@ function TopBar() {
     <div className="safe-top sticky top-0 z-30 bg-ivory/95 backdrop-blur">
       <div className="flex items-center justify-between gap-2 px-4 py-2">
         <button onClick={() => go('today')} className="flex min-w-0 items-center gap-2 whitespace-nowrap font-semibold text-olive">
-          <img src="/icon-192.png" alt="" className="size-7 rounded-lg" />
+          <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" className="size-7 rounded-lg" />
           {t('appName')}
         </button>
         <div className="flex items-center gap-2">
