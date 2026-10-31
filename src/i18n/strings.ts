@@ -57,7 +57,7 @@ export const STRINGS = {
   snackNow: { en: 'Snack now', ar: 'نقرشة هلّق' },
   smoothieNow: { en: 'Smoothie now', ar: 'سموذي هلّق' },
   useFirst: { en: 'Use these first', ar: 'استعملوا هودي أول' },
-  pickThis: { en: 'Make this tonight', ar: 'منعملها الليلة' },
+  pickThis: { en: 'Pick this', ar: 'منعملها الليلة' },
   eatLeftovers: { en: 'Eat leftovers', ar: 'مناكل البقايا' },
   optionsTitle: { en: 'Three easy options', ar: 'تلات خيارات سهلة' },
   exhaustedTitle: { en: '15 minutes or less', ar: '15 دقيقة أو أقل' },
