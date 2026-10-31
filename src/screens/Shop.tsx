@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { Check, ChevronDown, Hand, MoreHorizontal, Plus, Share2, Snowflake, Trash2 } from 'lucide-react'
 import { addDays, diffDays, weekDates } from '../domain/dates'
 import { stockOf } from '../domain/engine/availability'
+import { leftoverDaysLeft } from '../domain/engine/suggest'
 import { matchIngredient, normalize } from '../domain/engine/search'
-import { listToText, topUpDate, type Amount, type ListItem, type Trip } from '../domain/engine/shopping'
+import { listToText, stillToBuy, topUpDate, type Amount, type ListItem, type Trip } from '../domain/engine/shopping'
 import { AISLE_ORDER, INGREDIENTS } from '../domain/ingredients'
 import type { Leftover, StockStatus } from '../domain/types'
 import { formatQty } from '../domain/units'
@@ -67,7 +68,13 @@ function ShoppingList({ route }: { route: string[] }) {
       .filter((x) => x.trip === trip)
       .map((extra) => ({ kind: 'extra' as const, extra, aisle: extra.ingredientId ? INGREDIENTS[extra.ingredientId]?.aisle ?? 'other' : 'other', key: `x:${extra.id}` })),
   ]
-  const st = (r: Row) => (r.kind === 'item' ? k.listState(ws, r.key) : { checked: r.extra.checked, claimedBy: r.extra.claimedBy, haveIt: false })
+  // Ticked earlier, but a dish changed since and now needs more of it.
+  const more = (r: Row) => (r.kind === 'item' && k.listState(ws, r.key).checked ? stillToBuy(r.item.needed, k.listState(ws, r.key).bought) : [])
+  const st = (r: Row) => {
+    if (r.kind === 'extra') return { checked: r.extra.checked, claimedBy: r.extra.claimedBy, haveIt: false }
+    const s = k.listState(ws, r.key)
+    return more(r).length ? { ...s, checked: false } : s
+  }
   const isHave = (r: Row) => r.kind === 'item' && (r.item.status === 'covered' || st(r).haveIt)
   const isBasic = (r: Row) => r.kind === 'item' && r.item.status === 'basic' && !st(r).checked
   const toBuy = rows.filter((r) => !st(r).checked && !isHave(r) && !isBasic(r))
@@ -75,8 +82,9 @@ function ShoppingList({ route }: { route: string[] }) {
   const have = rows.filter((r) => isHave(r) && !st(r).checked)
   const basics = rows.filter((r) => isBasic(r) && !isHave(r))
 
+  const changed = toBuy.filter((r) => more(r).length || (r.kind === 'item' && k.listState(ws, r.key).late)).length
   const tripCount = (tr: Trip) =>
-    items.filter((i) => i.trip === tr && i.status !== 'covered' && i.status !== 'basic' && !k.listState(ws, i.key).checked && !k.listState(ws, i.key).haveIt).length +
+    rows.filter((r) => r.kind === 'item' && r.item.trip === tr && r.item.status !== 'covered' && r.item.status !== 'basic' && !st(r).checked && !st(r).haveIt).length +
     extras.filter((x) => x.trip === tr && !x.checked).length
 
   const label = (r: Row) => (r.kind === 'item' ? name(r.item.ingredientId) : r.extra.text)
@@ -89,12 +97,13 @@ function ShoppingList({ route }: { route: string[] }) {
     const checked = !st(r).checked
     if (r.kind === 'extra') {
       k.saveExtra({ ...r.extra, checked, by: k.me.id })
-      if (checked && r.extra.ingredientId) k.setStock(r.extra.ingredientId, { status: 'have', boughtOn: k.state.today, qty: undefined, unit: undefined, bestBy: undefined })
+      if (checked && r.extra.ingredientId) k.setStock(r.extra.ingredientId, { status: 'have', boughtOn: k.state.today, usedBy: undefined, qty: undefined, unit: undefined, bestBy: undefined })
       return
     }
-    k.setListState(ws, r.key, { checked, by: k.me.id, at: new Date().toISOString() })
+    k.setListState(ws, r.key, { checked, by: k.me.id, at: new Date().toISOString(), bought: checked ? r.item.needed : undefined, late: false })
     if (checked) {
-      k.setStock(r.item.ingredientId, { status: 'have', boughtOn: k.state.today, qty: undefined, unit: undefined, bestBy: undefined })
+      const lastUse = r.item.uses.at(-1)?.date
+      k.setStock(r.item.ingredientId, { status: 'have', boughtOn: k.state.today, usedBy: lastUse, qty: undefined, unit: undefined, bestBy: undefined })
       if (r.item.freezeUntil) toast(t('freezeToast', { item: name(r.item.ingredientId) }))
     }
   }
@@ -115,7 +124,7 @@ function ShoppingList({ route }: { route: string[] }) {
   const share = async () => {
     const lines = toBuy.map((r) => ({
       aisle: t(`aisle_${r.aisle}` as StringKey),
-      text: r.kind === 'item' ? `${label(r)} ${amountText(r.item.toBuy)}`.trim() : label(r),
+      text: r.kind === 'item' ? `${label(r)} ${amountText(more(r).length ? more(r) : r.item.toBuy)}`.trim() : label(r),
     }))
     const title = t('listTitle', { trip: trip === 'main' ? dayName(ws) : tud ? dayName(tud) : '' })
     const body = listToText(lines, title)
@@ -149,6 +158,10 @@ function ShoppingList({ route }: { route: string[] }) {
         {tud && <TripTab active={trip === 'topup'} onClick={() => setTrip('topup')} label={t('topUp', { day: weekdayName(k.state.settings.topUpDay) })} count={tripCount('topup')} />}
       </div>
 
+      {changed > 0 && (
+        <Card className="bg-terra-soft/70 text-sm text-terra-deep ring-terra/30">{t('listChanged', { n: changed })}</Card>
+      )}
+
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -175,9 +188,7 @@ function ShoppingList({ route }: { route: string[] }) {
           <section key={aisle}>
             <SectionTitle>{t(`aisle_${aisle}` as StringKey)}</SectionTitle>
             <ul className="space-y-1.5">
-              {list.map((r) => (
-                <ItemRow key={r.key} r={r} />
-              ))}
+              {list.map(itemRow)}
             </ul>
           </section>
         ))
@@ -199,9 +210,7 @@ function ShoppingList({ route }: { route: string[] }) {
       {basket.length > 0 && (
         <Collapsible open={showBasket} onToggle={() => setShowBasket((v) => !v)} title={t('inBasket', { n: basket.length })}>
           <ul className="space-y-1.5">
-            {basket.map((r) => (
-              <ItemRow key={r.key} r={r} />
-            ))}
+            {basket.map(itemRow)}
           </ul>
         </Collapsible>
       )}
@@ -261,12 +270,17 @@ function ShoppingList({ route }: { route: string[] }) {
     else k.saveExtra({ ...r.extra, claimedBy: who })
   }
 
-  function ItemRow({ r }: { r: Row }) {
+  // A plain render function, not a component: defining a component inside another
+  // remounts every row on each render.
+  function itemRow(r: Row) {
     const s = st(r)
     const it = r.kind === 'item' ? r.item : null
     const details: React.ReactNode[] = []
     if (it) {
       if (it.uses.length) details.push(t('forDishes', { dishes: it.uses.map((u) => `${recipeName(u.recipeId)} (${dayName(u.date, true)})`).join(lang === 'ar' ? '، ' : ', ') }))
+      const extra = more(r)
+      if (extra.length) details.push(<Badge key="x" tone="warn">{t('boughtNeedMore', { got: amountText(k.listState(ws, r.key).bought ?? []) })}</Badge>)
+      else if (k.listState(ws, r.key).late && !s.checked) details.push(<Badge key="n" tone="warn">{t('newSinceShopping')}</Badge>)
       if (it.status === 'check') details.push(<Badge key="c" tone="warn">{t('checkAmount')}</Badge>)
       if (it.status === 'need_more') {
         const p = k.state.pantry[it.ingredientId]
@@ -287,7 +301,7 @@ function ShoppingList({ route }: { route: string[] }) {
     }
     if (s.claimedBy) details.push(<Badge key="w" tone="good">{t('willGet', { name: s.claimedBy === k.me.id ? '✋' : k.nameOf(s.claimedBy) })}</Badge>)
     return (
-      <li className={cx('flex items-start gap-3 rounded-2xl bg-white p-3 ring-1 ring-sand/70', s.checked && 'opacity-60')}>
+      <li key={r.key} className={cx('flex items-start gap-3 rounded-2xl bg-white p-3 ring-1 ring-sand/70', s.checked && 'opacity-60')}>
         <button
           role="checkbox"
           aria-checked={!!s.checked}
@@ -299,7 +313,9 @@ function ShoppingList({ route }: { route: string[] }) {
         </button>
         <button className="min-w-0 flex-1 text-start" onClick={() => toggle(r)}>
           <span className={cx('font-medium', s.checked && 'line-through')}>{label(r)}</span>
-          {it && it.toBuy.length > 0 && <span className="ms-2 text-sm text-muted tabular-nums">{amountText(it.toBuy)}</span>}
+          {it && (more(r).length || it.toBuy.length) > 0 && (
+            <span className="ms-2 text-sm text-muted tabular-nums">{amountText(more(r).length ? more(r) : it.toBuy)}</span>
+          )}
           {details.length > 0 && <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">{details}</div>}
         </button>
         <button aria-label="more" onClick={() => setMenu(r)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted">
@@ -525,12 +541,15 @@ function Leftovers() {
                 <p className="text-xs text-muted">
                   {t('madeOn')}: {dayName(l.madeOn)} · {l.place === 'fridge' ? t('inFridge') : t('inFreezer')}
                 </p>
+                {leftoverDaysLeft(k.state, l) < 0 && <p className="text-xs font-medium text-terra-deep">{t('leftoverExpired')}</p>}
               </div>
               <div className="flex gap-1">
-                <Button size="sm" onClick={() => k.saveLeftover({ ...l, status: 'eaten' })}>
-                  {t('eaten')}
-                </Button>
-                {l.place === 'fridge' && (
+                {leftoverDaysLeft(k.state, l) >= 0 && (
+                  <Button size="sm" onClick={() => k.saveLeftover({ ...l, status: 'eaten' })}>
+                    {t('eaten')}
+                  </Button>
+                )}
+                {l.place === 'fridge' && leftoverDaysLeft(k.state, l) >= 0 && (
                   <Button size="sm" onClick={() => k.saveLeftover({ ...l, place: 'freezer' })} aria-label={t('frozen')}>
                     <Snowflake size={14} />
                   </Button>

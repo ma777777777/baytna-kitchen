@@ -8,7 +8,7 @@ import { totalMinutes } from '../domain/recipes'
 import type { Recipe } from '../domain/types'
 import { useKitchen } from '../data/kitchen'
 import { useT } from '../i18n'
-import { Badge, cx } from './kit'
+import { Badge, cx, useToast } from './kit'
 import { go } from './router'
 
 export function useIngName() {
@@ -127,4 +127,13 @@ export function Monogram({ recipe, size = 'md' }: { recipe: Recipe; size?: 'md' 
 
 export function minutesLabel(r: Recipe) {
   return totalMinutes(r)
+}
+
+/** After a plan change: if shopping had already started and the list grew, say so. */
+export function useLateNotice() {
+  const { t } = useT()
+  const toast = useToast()
+  return (n: number) => {
+    if (n > 0) toast(t('listChanged', { n }), { label: t('tabShop'), run: () => go('shop') })
+  }
 }

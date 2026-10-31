@@ -67,6 +67,19 @@ export function activeLeftovers(state: KitchenState): Leftover[] {
 }
 
 /**
+ * Leftovers we can honestly offer as dinner: in the fridge and still inside their safe window.
+ * Expired ones are never suggested (only shown with a "throw it out" nudge); freezer
+ * portions need thawing first, so they aren't "ready" tonight either.
+ */
+export function edibleLeftovers(state: KitchenState): Leftover[] {
+  return activeLeftovers(state).filter((l) => l.place === 'fridge' && leftoverDaysLeft(state, l) >= 0)
+}
+
+function leftoverSuggestions(state: KitchenState): Suggestion[] {
+  return edibleLeftovers(state).map((l) => ({ slot: 'leftovers', leftover: l, reasons: [{ code: 'leftovers', label: l.label, madeOn: l.madeOn }] }))
+}
+
+/**
  * "Change tonight": three realistic options.
  * (a) make with what we have, (b) one or two missing items, (c) 15-minute emergency dinner.
  * Leftovers in the fridge come first when present.
@@ -78,10 +91,7 @@ export function tonightOptions(state: KitchenState, excludeId?: string): Suggest
   const used = new Set<string>()
   const out: Suggestion[] = []
 
-  const fridgeLeftover = activeLeftovers(state).find((l) => l.place === 'fridge')
-  if (fridgeLeftover) {
-    out.push({ slot: 'leftovers', leftover: fridgeLeftover, reasons: [{ code: 'leftovers', label: fridgeLeftover.label, madeOn: fridgeLeftover.madeOn }] })
-  }
+  out.push(...leftoverSuggestions(state))
 
   const take = (slot: Suggestion['slot'], pred: (x: (typeof all)[number]) => boolean) => {
     const hit = all.find((x) => !used.has(x.r.id) && pred(x))
@@ -120,9 +130,7 @@ export function exhaustedOptions(state: KitchenState, n = 3): Suggestion[] {
     (x) => !out.some((o) => o.recipe?.id === x.r.id),
   )
   if (backup) out.push({ slot: 'emergency', recipe: backup.r, availability: backup.av, reasons: reasonsFor(backup.r, backup.av, backup.rating.loves) })
-  const fridgeLeftover = activeLeftovers(state).find((l) => l.place === 'fridge')
-  if (fridgeLeftover) out.unshift({ slot: 'leftovers', leftover: fridgeLeftover, reasons: [{ code: 'leftovers', label: fridgeLeftover.label, madeOn: fridgeLeftover.madeOn }] })
-  return out
+  return [...leftoverSuggestions(state), ...out]
 }
 
 /** One snack and one smoothie for right now, preferring what's in stock. */
@@ -147,10 +155,12 @@ export type Nudge =
 
 const LEFTOVER_DAYS = 3
 
-export function leftoverDaysLeft(state: KitchenState, l: Leftover) {
+/** Days of safe fridge life left: 0 = last day, negative = past it. Never more than 4 days in total. */
+export function leftoverDaysLeft(state: Pick<KitchenState, 'recipes' | 'today'>, l: Leftover) {
   if (l.place === 'freezer') return Infinity
   const r = l.recipeId ? state.recipes.find((x) => x.id === l.recipeId) : undefined
-  const keep = Math.min(r?.leftoverDays || LEFTOVER_DAYS, 4)
+  // "Eat fresh" dishes (0) still get one day; nothing gets more than 4.
+  const keep = Math.min(Math.max(r?.leftoverDays ?? LEFTOVER_DAYS, 1), 4)
   return keep - diffDays(state.today, l.madeOn)
 }
 

@@ -1,6 +1,6 @@
 import { diffDays } from '../dates'
 import { INGREDIENTS } from '../ingredients'
-import type { PantryItem, Recipe, Settings } from '../types'
+import type { PantryItem, PlanEntry, Recipe, Settings } from '../types'
 import { visibleIngredients } from './filters'
 
 /** What we honestly know about one ingredient. Unknown is never treated as present. */
@@ -10,9 +10,16 @@ export function stockOf(id: string, pantry: Record<string, PantryItem>, today: s
   const p = pantry[id]
   if (!p) return 'unknown'
   if (p.status !== 'have' && p.status !== 'low') return p.status
-  // A fresh item bought long ago is probably gone; ask rather than assume.
   const ing = INGREDIENTS[id]
-  if (p.boughtOn && ing?.fresh && ing.keepsDays != null && diffDays(today, p.boughtOn) > ing.keepsDays) return 'unknown'
+  if (p.boughtOn) {
+    // Bought for specific meals: once the last of them has passed, it was most likely used up.
+    // Staples are the exception; they're long-lived and managed by hand.
+    if (p.usedBy && !p.staple && today > p.usedBy) return 'unknown'
+    // Perishables bought long ago are probably gone. Raw meat bought for a later meal was
+    // frozen on purchase, so its planned date (above) is what counts.
+    const perishable = ing?.fresh || (ing?.raw && !p.usedBy)
+    if (perishable && ing?.keepsDays != null && diffDays(today, p.boughtOn) > ing.keepsDays) return 'unknown'
+  }
   if (p.bestBy && diffDays(today, p.bestBy) > 0) return 'unknown'
   return p.status
 }
@@ -52,3 +59,27 @@ export function recipeAvailability(
 }
 
 export const AVAILABILITY_RANK: Record<Availability, number> = { ready: 0, missing: 1, shopping: 2 }
+
+/**
+ * After cooking a dish, which bought-for-the-week ingredients are now probably used up:
+ * bought from the list (not staples) and not needed by any later planned dinner.
+ * The app then asks about them again instead of offering them as "have".
+ */
+export function usedUpBy(
+  recipe: Recipe,
+  state: { pantry: Record<string, PantryItem>; plan: Record<string, PlanEntry>; recipes: Recipe[]; settings: Settings },
+  date: string,
+): string[] {
+  const later = new Set<string>()
+  for (const e of Object.values(state.plan)) {
+    if (e.date <= date || e.type !== 'cook' || !e.recipeId) continue
+    const r = state.recipes.find((x) => x.id === e.recipeId)
+    if (r) for (const ri of keyIngredients(r, state.settings)) later.add(ri.id)
+  }
+  return keyIngredients(recipe, state.settings)
+    .map((ri) => ri.id)
+    .filter((id) => {
+      const p = state.pantry[id]
+      return p?.boughtOn && !p.staple && (p.status === 'have' || p.status === 'low') && !later.has(id)
+    })
+}

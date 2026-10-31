@@ -86,6 +86,8 @@ export interface PlanEntry {
   recipeId?: string
   servings?: number
   note?: string
+  /** On a leftovers night: the specific leftover we chose. */
+  leftoverId?: string
 }
 
 export type StockStatus = 'have' | 'low' | 'out' | 'unknown'
@@ -99,6 +101,11 @@ export interface PantryItem {
   bestBy?: string
   /** Set when ticked off the shopping list. */
   boughtOn?: string
+  /**
+   * Last planned use when it was bought. After that date the purchase no longer counts
+   * as "have" (it was probably eaten); the app asks again instead of assuming.
+   */
+  usedBy?: string
   /** Show on the staples screen even when not used this week. */
   staple?: boolean
 }

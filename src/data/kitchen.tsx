@@ -3,7 +3,8 @@ import { addDays, todayIso, weekStartFor } from '../domain/dates'
 import { DEFAULT_STAPLES, INGREDIENTS } from '../domain/ingredients'
 import { BUILT_IN_RECIPES } from '../domain/recipes'
 import { generateWeek } from '../domain/engine/planner'
-import { buildList, type ListItem } from '../domain/engine/shopping'
+import { usedUpBy } from '../domain/engine/availability'
+import { buildList, changesAfterShopping, type Amount, type ListItem } from '../domain/engine/shopping'
 import { DEFAULT_SETTINGS, type KitchenState } from '../domain/engine/state'
 import type {
   DayType, Ingredient, Leftover, Member, PantryItem, PlanEntry, Rating, Recipe, Settings, StockStatus,
@@ -16,6 +17,10 @@ export interface ListState {
   at?: string
   claimedBy?: string | null
   haveIt?: boolean
+  /** What the list asked for when it was ticked, to spot a bigger need after a plan change. */
+  bought?: Amount[]
+  /** Appeared after shopping had started for this week (a dish changed). */
+  late?: boolean
 }
 
 export interface ListExtra {
@@ -50,7 +55,8 @@ export interface Kitchen {
   // plan
   week: (weekStart: string) => WeekInfo | undefined
   draftWeek: (weekStart: string, types: DayType[], keepCooked?: boolean) => void
-  setEntry: (entry: PlanEntry) => void
+  /** Returns how many list items the change adds after shopping already started. */
+  setEntry: (entry: PlanEntry) => number
   confirmWeek: (weekStart: string) => void
   // shopping
   listFor: (weekStart: string) => ListItem[]
@@ -64,6 +70,8 @@ export interface Kitchen {
   untrack: (id: string) => void
   // leftovers
   saveLeftover: (l: Leftover) => void
+  /** "Done cooking": releases bought ingredients no later dinner needs, records leftovers. */
+  finishCooking: (recipe: Recipe, leftovers: boolean) => void
   // ratings
   rate: (recipeId: string, rating: Rating | null) => void
   // recipes
@@ -151,7 +159,17 @@ export function KitchenProvider(props: {
           { collection: 'week', key: ws, data: { seed } satisfies WeekInfo },
         ])
       },
-      setEntry: (e) => repo.set('plan', e.date, e),
+      setEntry: (e) => {
+        const ws = weekStartFor(e.date, settings.shopDay)
+        const ls = (key: string) => repo.get<ListState>('list_state', `${ws}|${key}`) ?? {}
+        // Shopping may already have started: flag anything new, or more than what was ticked.
+        const change = changesAfterShopping(state, e, ws, ls)
+        repo.setMany([
+          { collection: 'plan', key: e.date, data: e },
+          ...change.newKeys.map((key) => ({ collection: 'list_state' as const, key: `${ws}|${key}`, data: { ...ls(key), late: true } })),
+        ])
+        return change.count
+      },
       confirmWeek: (ws) => {
         const prev = repo.get<WeekInfo>('week', ws) ?? {}
         repo.set('week', ws, { ...prev, confirmedAt: new Date().toISOString(), confirmedBy: me.id })
@@ -181,6 +199,17 @@ export function KitchenProvider(props: {
       untrack: (id) => repo.set('pantry', id, null),
 
       saveLeftover: (l) => repo.set('leftover', l.id, l),
+      finishCooking: (recipe, leftovers) => {
+        const rows: { collection: 'pantry' | 'leftover'; key: string; data: unknown }[] = usedUpBy(recipe, state, today).map((id) => {
+          const { boughtOn: _b, usedBy: _u, ...rest } = state.pantry[id]
+          return { collection: 'pantry', key: id, data: { ...rest, status: 'unknown' } }
+        })
+        if (leftovers && recipe.kind === 'dinner') {
+          const id = uid()
+          rows.push({ collection: 'leftover', key: id, data: { id, label: recipe.name.en, recipeId: recipe.id, madeOn: today, place: 'fridge', status: 'active' } satisfies Leftover })
+        }
+        if (rows.length) repo.setMany(rows)
+      },
 
       rate: (recipeId, rating) =>
         repo.set('rating', `${recipeId}|${me.id}`, rating ? { recipeId, memberId: me.id, rating } : null),

@@ -9,7 +9,7 @@ import type { DayType, PlanEntry } from '../domain/types'
 import { useKitchen } from '../data/kitchen'
 import { useT } from '../i18n'
 import type { StringKey } from '../i18n/strings'
-import { Monogram, RecipeRow, WhyLine, useIngName } from '../ui/bits'
+import { Monogram, RecipeRow, WhyLine, useIngName, useLateNotice } from '../ui/bits'
 import { Badge, Button, Card, Chip, Sheet, Stepper, cx } from '../ui/kit'
 import { go } from '../ui/router'
 
@@ -109,6 +109,7 @@ function Draft({ ws }: { ws: string }) {
 
 function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefined)[]; dates: string[] }) {
   const k = useKitchen()
+  const notice = useLateNotice()
   const { t, L, dayName } = useT()
   const name = useIngName()
   const [swapDate, setSwapDate] = useState<string | null>(null)
@@ -169,7 +170,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
               {r && !past && (
                 <div className="mt-2 flex items-center justify-end gap-2 text-sm text-muted">
                   {t('servings')}
-                  <Stepper label={t('servings')} value={e.servings ?? r.servings} onChange={(n) => k.setEntry({ ...e, servings: n })} />
+                  <Stepper label={t('servings')} value={e.servings ?? r.servings} onChange={(n) => notice(k.setEntry({ ...e, servings: n }))} />
                 </div>
               )}
             </Card>
@@ -218,7 +219,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
                 const cur = k.state.plan[d]
                 if (dt === 'cook') {
                   const alt = cur?.recipeId ? undefined : alternativesFor(k.state, ws, d, 1)[0]
-                  k.setEntry({ date: d, type: 'cook', recipeId: cur?.recipeId ?? alt?.recipe.id, servings: alt ? servingsFor(alt.recipe, k.state) : cur?.servings })
+                  notice(k.setEntry({ date: d, type: 'cook', recipeId: cur?.recipeId ?? alt?.recipe.id, servings: alt ? servingsFor(alt.recipe, k.state) : cur?.servings }))
                 } else k.setEntry({ date: d, type: dt })
                 setTypeDate(null)
               }}
@@ -243,6 +244,7 @@ function LeftoverHint({ date }: { date: string }) {
 
 function SwapSheet({ ws, date, onClose }: { ws: string; date: string | null; onClose: () => void }) {
   const k = useKitchen()
+  const notice = useLateNotice()
   const { t, L, dayName } = useT()
   const [q, setQ] = useState('')
   const [browse, setBrowse] = useState(false)
@@ -251,7 +253,7 @@ function SwapSheet({ ws, date, onClose }: { ws: string; date: string | null; onC
   if (!date) return null
   const pick = (id: string) => {
     const r = k.state.recipes.find((x) => x.id === id)!
-    k.setEntry({ date, type: 'cook', recipeId: id, servings: servingsFor(r, k.state) })
+    notice(k.setEntry({ date, type: 'cook', recipeId: id, servings: servingsFor(r, k.state) }))
     setQ('')
     setBrowse(false)
     onClose()

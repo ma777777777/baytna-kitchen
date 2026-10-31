@@ -3,7 +3,7 @@ import { Check, X } from 'lucide-react'
 import { visibleIngredients } from '../domain/engine/filters'
 import type { Rating } from '../domain/types'
 import { formatQty } from '../domain/units'
-import { uid, useKitchen } from '../data/kitchen'
+import { useKitchen } from '../data/kitchen'
 import { useT } from '../i18n'
 import { useIngName } from '../ui/bits'
 import { Button, Card, Sheet, Stepper, cx } from '../ui/kit'
@@ -41,9 +41,7 @@ export function Cook({ id, servingsParam }: { id: string; servingsParam?: string
 
   const close = (leftovers: boolean) => {
     if (rating) k.rate(recipe.id, rating)
-    if (leftovers && recipe.kind === 'dinner') {
-      k.saveLeftover({ id: uid(), label: L(recipe.name), recipeId: recipe.id, madeOn: k.state.today, place: 'fridge', status: 'active' })
-    }
+    k.finishCooking(recipe, leftovers)
     go('today')
   }
 

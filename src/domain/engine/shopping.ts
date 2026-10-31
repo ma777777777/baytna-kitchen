@@ -1,6 +1,6 @@
 import { addDays, diffDays, weekDates, weekday } from '../dates'
 import { INGREDIENTS } from '../ingredients'
-import type { Aisle, PantryItem, Unit } from '../types'
+import type { Aisle, PantryItem, PlanEntry, Unit } from '../types'
 import { compatible, fromBase, toBase } from '../units'
 import { visibleIngredients } from './filters'
 import type { KitchenState } from './state'
@@ -172,6 +172,57 @@ export function buildList({ state, weekStart, from }: ListInput): ListItem[] {
     })
   }
   return items
+}
+
+/**
+ * What's still to buy for an item already ticked off, if the plan changed afterwards.
+ * Compares what was ticked (snapshot at the time) with what's needed now, per unit family.
+ * Small rounding drift (under 10%) is ignored so a servings tweak doesn't nag.
+ */
+export function stillToBuy(now: Amount[], bought: Amount[] | undefined): Amount[] {
+  if (!bought) return []
+  const got = new Map<string, number>()
+  for (const a of bought) {
+    const b = toBase(a.qty, a.unit)
+    got.set(b.family, (got.get(b.family) ?? 0) + b.qty)
+  }
+  const out: Amount[] = []
+  for (const a of now) {
+    const b = toBase(a.qty, a.unit)
+    const rest = b.qty - (got.get(b.family) ?? 0)
+    if (rest > b.qty * 0.1 && rest > 1e-9) out.push(fromBase(b.family, rest))
+  }
+  return out
+}
+
+/**
+ * A plan change after shopping began: which list items are brand new (to flag "new since you
+ * shopped"), and how many things now need buying that weren't covered by what was ticked.
+ * `ticked` gives the saved tick state per list key.
+ */
+export function changesAfterShopping(
+  state: KitchenState,
+  entry: PlanEntry,
+  weekStart: string,
+  ticked: (key: string) => { checked?: boolean; bought?: Amount[] },
+): { started: boolean; newKeys: string[]; count: number } {
+  const from = state.today
+  const before = buildList({ state, weekStart, from })
+  const started = before.some((i) => ticked(i.key).checked)
+  if (!started) return { started, newKeys: [], count: 0 }
+  const after = buildList({ state: { ...state, plan: { ...state.plan, [entry.date]: entry } }, weekStart, from })
+  const known = new Set(before.map((i) => i.key))
+  const newKeys: string[] = []
+  let count = 0
+  for (const it of after) {
+    if (it.status === 'covered' || it.status === 'basic') continue
+    const s = ticked(it.key)
+    if (!known.has(it.key) && !s.checked) {
+      newKeys.push(it.key)
+      count++
+    } else if (s.checked && stillToBuy(it.needed, s.bought).length) count++
+  }
+  return { started, newKeys, count }
 }
 
 /** Plain-text list for WhatsApp, grouped by aisle. */

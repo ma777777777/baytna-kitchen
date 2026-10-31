@@ -10,7 +10,7 @@ import { formatQty } from '../domain/units'
 import { useKitchen } from '../data/kitchen'
 import { useT } from '../i18n'
 import type { StringKey } from '../i18n/strings'
-import { AvailabilityBadge, Monogram, useAvailability, useIngName } from '../ui/bits'
+import { AvailabilityBadge, Monogram, useAvailability, useIngName, useLateNotice } from '../ui/bits'
 import { Badge, Button, Card, SectionTitle, Sheet, Stepper, cx } from '../ui/kit'
 import { go, useBack } from '../ui/router'
 
@@ -31,6 +31,7 @@ const RATING_LABEL: Record<Rating, StringKey> = { love: 'love', okay: 'okay', ne
 
 function Detail({ recipe }: { recipe: Recipe }) {
   const k = useKitchen()
+  const notice = useLateNotice()
   const { t, L, lang, dayName, list } = useT()
   const back = useBack()
   const name = useIngName()
@@ -188,7 +189,7 @@ function Detail({ recipe }: { recipe: Recipe }) {
                   key={d}
                   className="justify-between"
                   onClick={() => {
-                    k.setEntry({ date: d, type: 'cook', recipeId: recipe.id, servings })
+                    notice(k.setEntry({ date: d, type: 'cook', recipeId: recipe.id, servings }))
                     setPlanOpen(false)
                     go('week')
                   }}

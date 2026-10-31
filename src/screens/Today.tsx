@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle, CalendarPlus, ChefHat, Clock, Leaf, Shuffle, Snowflake, Sparkles, UtensilsCrossed, Zap } from 'lucide-react'
 import { addDays, diffDays } from '../domain/dates'
 import { leftoverSource, servingsFor } from '../domain/engine/planner'
-import { exhaustedOptions, snackPicks, todayNudges, tonightOptions, type Nudge, type Suggestion } from '../domain/engine/suggest'
+import { edibleLeftovers, exhaustedOptions, snackPicks, todayNudges, tonightOptions, type Nudge, type Suggestion } from '../domain/engine/suggest'
 import { totalMinutes } from '../domain/recipes'
 import type { Leftover } from '../domain/types'
 import { useKitchen } from '../data/kitchen'
@@ -23,6 +23,11 @@ export function Today() {
   // The Friday draft: from two days before the shopping day, nudge to plan next week.
   const nextStart = addDays(k.weekStart, 7)
   const needsNextWeek = diffDays(nextStart, state.today) <= 2 && !Object.keys(state.plan).some((d) => d >= nextStart && d < addDays(nextStart, 7))
+
+  const leftoverName = (l: Leftover) => {
+    const r = l.recipeId && state.recipes.find((x) => x.id === l.recipeId)
+    return r ? L(r.name) : l.label
+  }
 
   return (
     <div className="space-y-4">
@@ -65,7 +70,7 @@ export function Today() {
       ) : (
         <Card>
           <p className="text-sm font-medium text-terra-deep">{t('tonight')}</p>
-          <OtherNight type={entry?.type ?? 'free'} />
+          <OtherNight type={entry?.type ?? 'free'} leftoverId={entry?.leftoverId} />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={() => setSheet('options')}>
               <ChefHat size={18} /> {t('cookAnyway')}
@@ -103,14 +108,30 @@ export function Today() {
     </div>
   )
 
-  function OtherNight({ type }: { type: string }) {
+  function OtherNight({ type, leftoverId }: { type: string; leftoverId?: string }) {
     if (type === 'leftovers') {
       const src = leftoverSource(state, state.today)
       const r = src?.recipeId && state.recipes.find((x) => x.id === src.recipeId)
+      const edible = edibleLeftovers(state)
+      // The one we picked, else the tracked leftover from the planned batch dish, else the oldest safe one.
+      const chosen = leftoverId
+        ? edible.find((l) => l.id === leftoverId)
+        : (edible.find((l) => src?.recipeId && l.recipeId === src.recipeId) ?? edible[0])
       return (
         <>
-          <h2 className="mt-1 text-xl font-semibold text-olive">{t('leftoversNight')}</h2>
-          {r && src && <p className="mt-1 text-muted">{t('leftoversFrom', { day: dayName(src.date), dish: L(r.name) })}</p>}
+          <h2 className="mt-1 text-xl font-semibold text-olive">{chosen ? leftoverName(chosen) : t('leftoversNight')}</h2>
+          {chosen ? (
+            <>
+              <p className="mt-1 text-muted">{t('leftoverMade', { day: dayName(chosen.madeOn) })}</p>
+              <Button className="mt-3" variant="primary" onClick={() => k.saveLeftover({ ...chosen, status: 'eaten' })}>
+                {t('finishedLeftover')}
+              </Button>
+            </>
+          ) : leftoverId ? (
+            <p className="mt-1 text-terra-deep">{t('leftoverGone')}</p>
+          ) : (
+            r && src && <p className="mt-1 text-muted">{t('leftoversFrom', { day: dayName(src.date), dish: L(r.name) })}</p>
+          )}
         </>
       )
     }
@@ -177,14 +198,13 @@ function Options({ options, onPicked }: { options: Suggestion[]; onPicked: () =>
 
   const pickRecipe = (s: Suggestion) => {
     const r = s.recipe!
-    k.setEntry({ date: state.today, type: 'cook', recipeId: r.id, servings: servingsFor(r, state) })
-    if (s.availability && s.availability.missing.length) toast(t('addedMissing'), { label: t('tabShop'), run: () => go('shop') })
+    const late = k.setEntry({ date: state.today, type: 'cook', recipeId: r.id, servings: servingsFor(r, state) })
+    if (late || (s.availability && s.availability.missing.length)) toast(t('addedMissing'), { label: t('tabShop'), run: () => go('shop') })
     onPicked()
   }
   const pickLeftover = (l: Leftover) => {
-    k.setEntry({ date: state.today, type: 'leftovers' })
+    k.setEntry({ date: state.today, type: 'leftovers', leftoverId: l.id })
     onPicked()
-    void l
   }
 
   return (
@@ -283,7 +303,7 @@ function Nudges({ nudges }: { nudges: Nudge[] }) {
                   <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('useFirst')}</p>
                   <p className="font-medium">
                     {old
-                      ? t('nudgeLeftoverOld', { label, n: 3 })
+                      ? t('nudgeLeftoverOld', { label })
                       : n.daysLeft === 0
                         ? t('nudgeLeftoverToday', { label })
                         : t('nudgeLeftover', { label, n: n.daysLeft })}
@@ -291,17 +311,24 @@ function Nudges({ nudges }: { nudges: Nudge[] }) {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => k.saveLeftover({ ...l, status: 'eaten' })}>
-                  {t('eaten')}
-                </Button>
-                {!old && (
-                  <Button size="sm" onClick={() => k.saveLeftover({ ...l, place: 'freezer' })}>
-                    <Snowflake size={14} /> {t('frozen')}
+                {old ? (
+                  // Past its safe window: the only offered action is throwing it out.
+                  <Button size="sm" variant="primary" onClick={() => k.saveLeftover({ ...l, status: 'tossed' })}>
+                    {t('tossed')}
                   </Button>
+                ) : (
+                  <>
+                    <Button size="sm" onClick={() => k.saveLeftover({ ...l, status: 'eaten' })}>
+                      {t('eaten')}
+                    </Button>
+                    <Button size="sm" onClick={() => k.saveLeftover({ ...l, place: 'freezer' })}>
+                      <Snowflake size={14} /> {t('frozen')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => k.saveLeftover({ ...l, status: 'tossed' })}>
+                      {t('tossed')}
+                    </Button>
+                  </>
                 )}
-                <Button size="sm" variant="ghost" onClick={() => k.saveLeftover({ ...l, status: 'tossed' })}>
-                  {t('tossed')}
-                </Button>
               </div>
             </Card>
           )
