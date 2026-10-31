@@ -4,6 +4,17 @@ import { createHousehold, joinHousehold, saveProfileName, supabase } from '../da
 import { useT } from '../i18n'
 import { Button, Card } from '../ui/kit'
 
+type T = ReturnType<typeof useT>['t']
+
+/** Server errors arrive in English; show the common ones in the user's language. */
+function friendly(msg: string, t: T) {
+  const m = msg.toLowerCase()
+  if (m.includes('expired') || m.includes('invalid')) return t('errCode')
+  if (m.includes('rate limit') || m.includes('security purposes') || m.includes('too many')) return t('errTooMany')
+  if (m.includes('fetch') || m.includes('network')) return t('errNetwork')
+  return t('errorGeneric', { msg })
+}
+
 const field = 'min-h-12 w-full rounded-2xl bg-white px-4 text-lg ring-1 ring-sand outline-none focus:ring-2 focus:ring-sage'
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -52,7 +63,7 @@ export function SignIn() {
     setErr('')
     const { error } = await supabase!.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } })
     setBusy(false)
-    if (error) setErr(error.message)
+    if (error) setErr(friendly(error.message, t))
     else setSent(true)
   }
   const verify = async () => {
@@ -60,7 +71,7 @@ export function SignIn() {
     setErr('')
     const { error } = await supabase!.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' })
     setBusy(false)
-    if (error) setErr(error.message)
+    if (error) setErr(friendly(error.message, t))
   }
 
   return (
@@ -108,7 +119,7 @@ export function SignIn() {
             </Button>
           </form>
         )}
-        {err && <p className="mt-3 text-sm text-terra-deep">{t('errorGeneric', { msg: err })}</p>}
+        {err && <p className="mt-3 text-sm text-terra-deep">{err}</p>}
       </Card>
     </Shell>
   )
@@ -143,7 +154,7 @@ export function SetupHousehold({ session, needsName, onDone }: { session: Sessio
       onDone(hid, created)
     } catch (e) {
       const msg = (e as Error).message ?? ''
-      setErr(msg.includes('invalid_or_expired') ? t('errInvite') : msg.includes('household_full') ? t('errFull') : t('errorGeneric', { msg }))
+      setErr(msg.includes('invalid_or_expired') ? t('errInvite') : msg.includes('household_full') ? t('errFull') : friendly(msg, t))
     } finally {
       setBusy(false)
     }

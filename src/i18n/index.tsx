@@ -52,7 +52,12 @@ export function LangProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18n>(() => {
     const locale = lang === 'ar' ? 'ar-LB-u-nu-latn' : 'en-GB'
     const t: I18n['t'] = (key, vars) => {
-      let s: string = STRINGS[key][lang]
+      // Optional count forms: `ar1`/`ar2` (Arabic singular and dual), `ar11` (11 and up takes a
+      // singular noun), `en1`.
+      const forms = STRINGS[key] as Record<string, string>
+      const n = vars?.n
+      const form = typeof n === 'number' ? (n === 1 ? '1' : n === 2 ? '2' : n >= 11 ? '11' : '') : ''
+      let s: string = (form && forms[lang + form]) || forms[lang]
       if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v))
       return s
     }

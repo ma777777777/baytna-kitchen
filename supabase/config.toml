@@ -418,9 +418,9 @@ enabled = true
 # Baytna Kitchen: send a typed code instead of a link, because on iPhone a link opens
 # in Safari rather than in the installed home-screen app.
 [auth.email.template.magic_link]
-subject = "Your Baytna Kitchen code"
+subject = "Your Baytna Kitchen code · كود مطبخ بيتنا"
 content_path = "./supabase/templates/code.html"
 
 [auth.email.template.confirmation]
-subject = "Your Baytna Kitchen code"
+subject = "Your Baytna Kitchen code · كود مطبخ بيتنا"
 content_path = "./supabase/templates/code.html"

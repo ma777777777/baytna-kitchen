@@ -67,19 +67,19 @@ export function define(spec: RecipeSpec): Recipe {
 export const SAFETY = {
   chicken: [
     'Cook chicken until no pink remains and juices run clear (74°C inside if you have a thermometer). Wash hands and boards after handling raw chicken.',
-    'نطبخ الدجاج حتى يختفي اللون الزهري وتصير العصارة صافية (74 درجة من الداخل إذا في ميزان حرارة). نغسل الإيدين واللوح بعد لمس الدجاج النيء.',
+    'اطبخوا الدجاج لحتى ما يضل فيه ولا لون زهري وتطلع مَيّتو صافية (74 درجة من جوّا إذا عندكم ميزان حرارة). اغسلوا إيديكم واللوح بعد ما تلمسوا الدجاج النيّ.',
   ] as Pair,
   minced: [
     'Cook minced meat through until no pink remains (71°C inside).',
-    'نطبخ اللحمة المفرومة حتى تستوي تماماً وما يبقى لون زهري (71 درجة من الداخل).',
+    'اطبخوا اللحمة المفرومة لحتى تستوي منيح وما يضل فيها لون زهري (71 درجة من جوّا).',
   ] as Pair,
   fish: [
     'Fish is done when it turns opaque and flakes easily with a fork (63°C inside).',
-    'السمك بيستوي لما يصير لونه أبيض غير شفاف ويتفتت بسهولة بالشوكة (63 درجة من الداخل).',
+    'السمك بيكون استوى لما يصير أبيض مش شفاف ويتفتّت بسهولة بالشوكة (63 درجة من جوّا).',
   ] as Pair,
 }
 
 export const LEFTOVERS_3_DAYS: Pair = [
   'Cool within 2 hours in a shallow container, refrigerate, eat within 3 days. Reheat until steaming hot.',
-  'منبرّدها خلال ساعتين بعلبة مسطحة ومنحطها بالبراد، ومناكلها خلال 3 أيام. منسخنها لحتى تطلع بخار.',
+  'بردّوها خلال ساعتين بعلبة واطية وحطّوها بالبراد، وكلوها خلال 3 أيام. سخّنوها منيح لحتى يطلع منها بخار.',
 ]

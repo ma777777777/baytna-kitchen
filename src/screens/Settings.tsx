@@ -156,7 +156,7 @@ export function Settings({ householdId, onSignOut }: { householdId?: string; onS
               window.location.reload()
             }}
           >
-            ↺ Reset demo
+            ↺ {t('resetDemo')}
           </Button>
         ) : (
           cloudEnabled && (

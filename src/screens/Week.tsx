@@ -55,7 +55,7 @@ export function Week({ initial }: { initial?: string }) {
         <div className="sticky bottom-20 z-10">
           {info?.confirmedAt ? (
             <Button className="w-full" size="lg" onClick={() => go('shop')}>
-              <Check size={18} /> {t('confirmedBy', { name: k.nameOf(info.confirmedBy) || '✓' })} · {t('tabShop')}
+              <Check size={18} /> {t('confirmedOpenList', { name: k.nameOf(info.confirmedBy) || '✓' })}
             </Button>
           ) : (
             <Button
@@ -143,7 +143,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
                     <div className="min-w-0">
                       <p className="font-medium leading-snug">{L(r.name)}</p>
                       <p className="flex items-center gap-2 text-xs text-muted">
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
                           <Clock size={12} /> {t('min', { n: totalMinutes(r) })}
                         </span>
                         {frozen && (

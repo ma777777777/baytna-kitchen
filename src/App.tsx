@@ -41,7 +41,7 @@ function DemoApp() {
   const members = useMemo(
     () => [
       { id: DEMO_ME, name: lang === 'ar' ? 'أنا' : 'Me' },
-      { id: DEMO_PARTNER, name: lang === 'ar' ? 'الشريك' : 'Partner' },
+      { id: DEMO_PARTNER, name: lang === 'ar' ? 'الطرف التاني' : 'Partner' },
     ],
     [lang],
   )

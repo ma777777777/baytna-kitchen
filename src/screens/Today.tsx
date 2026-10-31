@@ -103,7 +103,7 @@ export function Today() {
           options={sheet === 'tired' ? exhaustedOptions(state) : tonightOptions(state, recipe?.id)}
           onPicked={() => setSheet(null)}
         />
-        <p className="mt-3 text-center text-sm text-muted">{L({ en: 'Picking one replaces tonight in the plan; the shopping list updates.', ar: 'الاختيار بيحلّ محل عشا الليلة بالخطة، واللائحة بتتحدّث.' })}</p>
+        <p className="mt-3 text-center text-sm text-muted">{L({ en: 'Picking one replaces tonight in the plan; the shopping list updates.', ar: 'يلي بتختاروه بيصير عشا الليلة بالخطة، ولائحة الأغراض بتتحدّث لحالها.' })}</p>
       </Sheet>
     </div>
   )

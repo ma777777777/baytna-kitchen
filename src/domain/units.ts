@@ -49,18 +49,18 @@ export function roundQty(qty: number, unit: Unit): number {
 
 const UNIT_LABEL: Record<Unit, { en: [string, string]; ar: [string, string] }> = {
   g: { en: ['g', 'g'], ar: ['غ', 'غ'] },
-  kg: { en: ['kg', 'kg'], ar: ['كغ', 'كغ'] },
+  kg: { en: ['kg', 'kg'], ar: ['كيلو', 'كيلو'] },
   ml: { en: ['ml', 'ml'], ar: ['مل', 'مل'] },
-  l: { en: ['L', 'L'], ar: ['ل', 'ل'] },
+  l: { en: ['L', 'L'], ar: ['ليتر', 'ليتر'] },
   tsp: { en: ['tsp', 'tsp'], ar: ['ملعقة صغيرة', 'ملاعق صغيرة'] },
   tbsp: { en: ['tbsp', 'tbsp'], ar: ['ملعقة كبيرة', 'ملاعق كبيرة'] },
   cup: { en: ['cup', 'cups'], ar: ['كوب', 'أكواب'] },
   pc: { en: ['', ''], ar: ['', ''] },
-  clove: { en: ['clove', 'cloves'], ar: ['فص', 'فصوص'] },
-  bunch: { en: ['bunch', 'bunches'], ar: ['ضمة', 'ضمم'] },
+  clove: { en: ['clove', 'cloves'], ar: ['سن', 'سنان'] },
+  bunch: { en: ['bunch', 'bunches'], ar: ['ضمّة', 'ضمّات'] },
   can: { en: ['can', 'cans'], ar: ['علبة', 'علب'] },
   slice: { en: ['slice', 'slices'], ar: ['شريحة', 'شرائح'] },
-  handful: { en: ['handful', 'handfuls'], ar: ['حفنة', 'حفنات'] },
+  handful: { en: ['handful', 'handfuls'], ar: ['كمشة', 'كمشات'] },
   pack: { en: ['pack', 'packs'], ar: ['كيس', 'أكياس'] },
 }
 

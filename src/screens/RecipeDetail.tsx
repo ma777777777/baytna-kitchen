@@ -105,7 +105,7 @@ function Detail({ recipe }: { recipe: Recipe }) {
         <Button variant="primary" size="lg" onClick={() => go(`cook/${recipe.id}/${servings}`)}>
           <ChefHat size={20} /> {t('cookNow')}
         </Button>
-        <Button size="lg" onClick={() => setPlanOpen(true)}>
+        <Button size="lg" className="whitespace-nowrap" onClick={() => setPlanOpen(true)}>
           <CalendarPlus size={18} /> {t('addToPlan')}
         </Button>
       </div>
