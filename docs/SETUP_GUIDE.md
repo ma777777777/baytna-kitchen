@@ -10,7 +10,7 @@ About 30 minutes, once. Everything here is on free plans: Supabase (database, lo
 2. When the project is ready, open **SQL Editor → New query**. Paste the whole file `supabase/migrations/20261030000000_init.sql` and click **Run**. You should see "Success. No rows returned".
 3. **Make sign-in emails contain a code.** On iPhone, a sign-in *link* opens in Safari instead of the installed app, so we use a 6-digit code instead.
    Open **Authentication → Emails → Templates**. For both **Magic link** and **Confirm signup**:
-   - Subject: `Your Baytna Kitchen code`
+   - Subject: `Your Baytna Kitchen code · كود مطبخ بيتنا`
    - Body: paste the contents of `supabase/templates/code.html` (it contains `{{ .Token }}`, which becomes the code).
    - Save.
 4. **Let the email reach your wife.** Supabase's built-in email sender only delivers to members of your Supabase team, and only about 2 emails an hour ([Supabase docs](https://supabase.com/docs/guides/auth/auth-smtp)). That's enough for two people who sign in once, but her address must be on the team:
