@@ -1,9 +1,9 @@
 import { addDays, diffDays, weekDates, weekday } from '../dates'
 import { INGREDIENTS } from '../ingredients'
-import type { Aisle, PantryItem, PlanEntry, Unit } from '../types'
+import type { Aisle, MealEntry, PantryItem, PlanEntry, Unit } from '../types'
 import { compatible, fromBase, toBase } from '../units'
 import { visibleIngredients } from './filters'
-import type { KitchenState } from './state'
+import { cooksOn, withEntry, type KitchenState } from './state'
 
 export type Trip = 'main' | 'topup'
 
@@ -89,23 +89,23 @@ export function buildList({ state, weekStart, from }: ListInput): ListItem[] {
 
   for (const date of weekDates(weekStart)) {
     if (date < start) continue
-    const e = state.plan[date]
-    if (e?.type !== 'cook' || !e.recipeId) continue
-    const r = state.recipes.find((x) => x.id === e.recipeId)
-    if (!r) continue
-    const factor = (e.servings ?? r.servings) / r.servings
-    for (const ri of visibleIngredients(r, state.settings)) {
-      const ing = INGREDIENTS[ri.id]
-      if (!ing || ing.free || ri.optional) continue
-      const trip = tripFor(ri.id, date, weekStart, topUp)
-      const key = `${ri.id}@${trip}`
-      let g = groups.get(key)
-      if (!g) groups.set(key, (g = { trip, id: ri.id, totals: new Map(), uses: [], hasQty: false }))
-      if (ri.qty != null) {
-        addTo(g.totals, ri.qty * factor, ri.unit)
-        g.hasQty = true
+    for (const e of cooksOn(state, date)) {
+      const r = state.recipes.find((x) => x.id === e.recipeId)
+      if (!r) continue
+      const factor = (e.servings ?? r.servings) / r.servings
+      for (const ri of visibleIngredients(r, state.settings)) {
+        const ing = INGREDIENTS[ri.id]
+        if (!ing || ing.free || ri.optional) continue
+        const trip = tripFor(ri.id, date, weekStart, topUp)
+        const key = `${ri.id}@${trip}`
+        let g = groups.get(key)
+        if (!g) groups.set(key, (g = { trip, id: ri.id, totals: new Map(), uses: [], hasQty: false }))
+        if (ri.qty != null) {
+          addTo(g.totals, ri.qty * factor, ri.unit)
+          g.hasQty = true
+        }
+        if (!g.uses.some((u) => u.date === date && u.recipeId === r.id)) g.uses.push({ date, recipeId: r.id })
       }
-      if (!g.uses.some((u) => u.date === date && u.recipeId === r.id)) g.uses.push({ date, recipeId: r.id })
     }
   }
 
@@ -202,7 +202,7 @@ export function stillToBuy(now: Amount[], bought: Amount[] | undefined): Amount[
  */
 export function changesAfterShopping(
   state: KitchenState,
-  entry: PlanEntry,
+  entry: PlanEntry | MealEntry,
   weekStart: string,
   ticked: (key: string) => { checked?: boolean; bought?: Amount[] },
 ): { started: boolean; newKeys: string[]; count: number } {
@@ -210,7 +210,7 @@ export function changesAfterShopping(
   const before = buildList({ state, weekStart, from })
   const started = before.some((i) => ticked(i.key).checked)
   if (!started) return { started, newKeys: [], count: 0 }
-  const after = buildList({ state: { ...state, plan: { ...state.plan, [entry.date]: entry } }, weekStart, from })
+  const after = buildList({ state: withEntry(state, entry), weekStart, from })
   const known = new Set(before.map((i) => i.key))
   const newKeys: string[] = []
   let count = 0

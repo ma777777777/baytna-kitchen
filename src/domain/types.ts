@@ -88,6 +88,22 @@ export interface PlanEntry {
   note?: string
   /** On a leftovers night: the specific leftover we chose. */
   leftoverId?: string
+  /** Which meal of the day this main (cooked) meal is. Default dinner. */
+  meal?: 'lunch' | 'dinner'
+}
+
+/** The four meals of a day. The main meal (PlanEntry) takes lunch or dinner; the rest are extras. */
+export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export const SLOTS: Slot[] = ['breakfast', 'lunch', 'dinner', 'snack']
+
+/** An optional extra meal on a day: a recipe, leftovers, eating out, or just a few words ("labneh & zaatar"). */
+export interface MealEntry {
+  date: string
+  slot: Slot
+  type: 'cook' | 'leftovers' | 'out' | 'note'
+  recipeId?: string
+  servings?: number
+  note?: string
 }
 
 export type StockStatus = 'have' | 'low' | 'out' | 'unknown'

@@ -4,7 +4,7 @@ import { totalMinutes } from '../recipes'
 import type { Leftover, Recipe, RecipeKind } from '../types'
 import { AVAILABILITY_RANK, recipeAvailability, type RecipeAvailability } from './availability'
 import { isAllowed, visibleIngredients } from './filters'
-import { householdRating, type KitchenState } from './state'
+import { cooksOn, householdRating, type KitchenState } from './state'
 import { topUpDate } from './shopping'
 
 export type Reason =
@@ -165,17 +165,17 @@ export function leftoverDaysLeft(state: Pick<KitchenState, 'recipes' | 'today'>,
 }
 
 function rawUses(state: KitchenState, date: string, weekStart: string) {
-  const e = state.plan[date]
-  if (e?.type !== 'cook' || !e.recipeId) return []
-  const r = state.recipes.find((x) => x.id === e.recipeId)
-  if (!r) return []
-  return visibleIngredients(r, state.settings)
-    .filter((ri) => {
-      const ing = INGREDIENTS[ri.id]
-      // Frozen-from-shop items: raw protein used 2+ days after the shopping day.
-      return ing?.raw && !ri.optional && diffDays(date, weekStart) >= (ing.keepsDays ?? 2) && ri.id !== 'frozen_fish'
-    })
-    .map((ri) => ({ ingredientId: ri.id, recipeId: r.id }))
+  return cooksOn(state, date).flatMap((e) => {
+    const r = state.recipes.find((x) => x.id === e.recipeId)
+    if (!r) return []
+    return visibleIngredients(r, state.settings)
+      .filter((ri) => {
+        const ing = INGREDIENTS[ri.id]
+        // Frozen-from-shop items: raw protein used 2+ days after the shopping day.
+        return ing?.raw && !ri.optional && diffDays(date, weekStart) >= (ing.keepsDays ?? 2) && ri.id !== 'frozen_fish'
+      })
+      .map((ri) => ({ ingredientId: ri.id, recipeId: r.id }))
+  })
 }
 
 export function todayNudges(state: KitchenState, weekStart: string): Nudge[] {

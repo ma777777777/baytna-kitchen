@@ -182,20 +182,22 @@ function Detail({ recipe }: { recipe: Recipe }) {
             .filter((d) => d >= k.state.today)
             .slice(0, 9)
             .map((d) => {
-              const cur = k.state.plan[d]
+              // Breakfasts, snacks and smoothies go into that meal of the day; dinners replace the main meal.
+              const slot = recipe.kind === 'breakfast' ? 'breakfast' : recipe.kind === 'dinner' ? null : 'snack'
+              const cur = slot ? k.state.meals?.[d]?.[slot] : k.state.plan[d]
               const curR = cur?.recipeId && k.state.recipes.find((r) => r.id === cur.recipeId)
               return (
                 <Button
                   key={d}
                   className="justify-between"
                   onClick={() => {
-                    notice(k.setEntry({ date: d, type: 'cook', recipeId: recipe.id, servings }))
+                    notice(slot ? k.setMeal(d, slot, { type: 'cook', recipeId: recipe.id, servings }) : k.setEntry({ date: d, type: 'cook', recipeId: recipe.id, servings }))
                     setPlanOpen(false)
                     go('week')
                   }}
                 >
                   <span>{d === k.state.today ? t('today') : dayName(d)}</span>
-                  <span className="truncate text-sm text-muted">{curR ? L(curR.name) : cur ? t(`day${cap(cur.type)}` as StringKey) : ''}</span>
+                  <span className="truncate text-sm text-muted">{curR ? L(curR.name) : cur && !slot ? t(`day${cap(cur.type)}` as StringKey) : ''}</span>
                 </Button>
               )
             })}

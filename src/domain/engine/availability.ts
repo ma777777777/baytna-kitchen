@@ -1,6 +1,7 @@
 import { diffDays } from '../dates'
 import { INGREDIENTS } from '../ingredients'
-import type { PantryItem, PlanEntry, Recipe, Settings } from '../types'
+import type { MealEntry, PantryItem, PlanEntry, Recipe, Settings, Slot } from '../types'
+import { cookDates, cooksOn } from './state'
 import { visibleIngredients } from './filters'
 
 /** What we honestly know about one ingredient. Unknown is never treated as present. */
@@ -67,14 +68,22 @@ export const AVAILABILITY_RANK: Record<Availability, number> = { ready: 0, missi
  */
 export function usedUpBy(
   recipe: Recipe,
-  state: { pantry: Record<string, PantryItem>; plan: Record<string, PlanEntry>; recipes: Recipe[]; settings: Settings },
+  state: {
+    pantry: Record<string, PantryItem>
+    plan: Record<string, PlanEntry>
+    meals?: Record<string, Partial<Record<Slot, MealEntry>>>
+    recipes: Recipe[]
+    settings: Settings
+  },
   date: string,
 ): string[] {
   const later = new Set<string>()
-  for (const e of Object.values(state.plan)) {
-    if (e.date <= date || e.type !== 'cook' || !e.recipeId) continue
-    const r = state.recipes.find((x) => x.id === e.recipeId)
-    if (r) for (const ri of keyIngredients(r, state.settings)) later.add(ri.id)
+  for (const d of cookDates(state)) {
+    if (d <= date) continue
+    for (const e of cooksOn(state, d)) {
+      const r = state.recipes.find((x) => x.id === e.recipeId)
+      if (r) for (const ri of keyIngredients(r, state.settings)) later.add(ri.id)
+    }
   }
   return keyIngredients(recipe, state.settings)
     .map((ri) => ri.id)

@@ -259,16 +259,21 @@ function exportData(k: ReturnType<typeof useKitchen>) {
     household: k.householdName,
     settings: k.state.settings,
     plan: k.state.plan,
+    meals: k.state.meals ?? {},
     pantry: k.state.pantry,
     ratings: k.state.ratings,
     leftovers: k.state.leftovers,
     customRecipes: k.state.recipes.filter((r) => r.custom),
   }
   const csv = [
-    'date,type,recipe,servings',
-    ...Object.values(k.state.plan)
+    'date,meal,type,recipe,servings,note',
+    ...[
+      ...Object.values(k.state.plan).map((e) => ({ ...e, slot: e.meal ?? 'dinner', note: e.note })),
+      ...Object.values(k.state.meals ?? {}).flatMap((d) => Object.values(d)),
+    ]
+      .filter((e) => !!e)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => `${e.date},${e.type},${e.recipeId ?? ''},${e.servings ?? ''}`),
+      .map((e) => `${e.date},${e.slot},${e.type},${e.recipeId ?? ''},${e.servings ?? ''},"${(e.note ?? '').replace(/"/g, '""')}"`),
   ].join('\n')
   download('baytna-kitchen.json', JSON.stringify(data, null, 2), 'application/json')
   download('baytna-plan.csv', csv, 'text/csv')

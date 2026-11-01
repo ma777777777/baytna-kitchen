@@ -2,7 +2,7 @@ import { addDays, todayIso, weekStartFor } from '../domain/dates'
 import { generateWeek } from '../domain/engine/planner'
 import { DEFAULT_SETTINGS, type KitchenState } from '../domain/engine/state'
 import { BUILT_IN_RECIPES } from '../domain/recipes'
-import type { PantryItem } from '../domain/types'
+import type { MealEntry, PantryItem } from '../domain/types'
 import { seedHousehold } from './kitchen'
 import { Repo } from './repo'
 
@@ -46,7 +46,17 @@ export function demoRepo(): Repo {
     members: [],
   }
   const plan = generateWeek(state, { weekStart: ws, seed: 11 })
+  // Show the meals of the day: a breakfast and a snack today, and a lunch-main day later.
+  const later = addDays(today, 2)
+  const laterMain = plan.find((e) => e.date === later)
+  if (laterMain?.type === 'cook') laterMain.meal = 'lunch'
+  const extras: MealEntry[] = [
+    { date: today, slot: 'breakfast', type: 'cook', recipeId: 'labneh_zaatar_triangles', servings: 2 },
+    { date: today, slot: 'snack', type: 'note', note: 'فواكه وجوز' },
+    ...(laterMain?.type === 'cook' ? [{ date: later, slot: 'dinner' as const, type: 'note' as const, note: 'لبنة وزيتون' }] : []),
+  ]
   repo.setMany([
+    ...extras.map((m) => ({ collection: 'plan' as const, key: `${m.date}|${m.slot}`, data: m })),
     ...Object.values(pantry).map((p) => ({ collection: 'pantry' as const, key: p.id, data: p })),
     ...plan.map((e) => ({ collection: 'plan' as const, key: e.date, data: e })),
     { collection: 'week', key: ws, data: { seed: 11 } },
