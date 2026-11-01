@@ -12,6 +12,7 @@
     "typecheck": "tsc -b",
     "test:db": "supabase/tests/run.sh",
     "test:e2e:screens": "node e2e/screens.cjs",
+    "test:e2e:meals": "node e2e/meals.cjs",
     "test:e2e:sync": "node e2e/two-phones.cjs"
   },
   "dependencies": {

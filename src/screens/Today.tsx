@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, CalendarPlus, ChefHat, Clock, Leaf, Shuffle, Snowflake, Sparkles, UtensilsCrossed, Zap } from 'lucide-react'
+import { AlertTriangle, CalendarPlus, ChefHat, Clock, Leaf, Plus, Shuffle, Snowflake, Sparkles, UtensilsCrossed, Zap } from 'lucide-react'
 import { addDays, diffDays } from '../domain/dates'
 import { leftoverSource, servingsFor } from '../domain/engine/planner'
 import { edibleLeftovers, exhaustedOptions, snackPicks, todayNudges, tonightOptions, type Nudge, type Suggestion } from '../domain/engine/suggest'
@@ -8,8 +8,12 @@ import type { Leftover } from '../domain/types'
 import { useKitchen } from '../data/kitchen'
 import { useT } from '../i18n'
 import { AvailabilityBadge, Monogram, ReasonLine, useAvailability, useIngName } from '../ui/bits'
-import { Button, Card, Chip, SectionTitle, Sheet, useToast } from '../ui/kit'
+import { Button, Card, Chip, SectionTitle, Sheet, cx, useToast } from '../ui/kit'
+import type { StringKey } from '../i18n/strings'
 import { go } from '../ui/router'
+import { mainSlot } from '../domain/engine/state'
+import { SLOTS } from '../domain/types'
+import { MealSheet, MoveMain, SLOT_LABEL, useMealText, type MealTarget } from './Meals'
 
 export function Today() {
   const k = useKitchen()
@@ -18,6 +22,7 @@ export function Today() {
   const entry = state.plan[state.today]
   const recipe = entry?.recipeId ? state.recipes.find((r) => r.id === entry.recipeId) : undefined
   const [sheet, setSheet] = useState<null | 'options' | 'tired'>(null)
+  const mainLabel = mainSlot(entry) === 'lunch' ? t('lunchToday') : t('tonight')
   const nudges = todayNudges(state, k.weekStart)
   const hasPlan = Object.keys(state.plan).some((d) => d >= k.weekStart && d < addDays(k.weekStart, 7))
   // The Friday draft: from two days before the shopping day, nudge to plan next week.
@@ -66,10 +71,10 @@ export function Today() {
           </div>
         </Card>
       ) : recipe && entry?.type === 'cook' ? (
-        <TonightCard recipeId={recipe.id} servings={entry.servings ?? servingsFor(recipe, state)} onChange={() => setSheet('options')} />
+        <TonightCard label={mainLabel} recipeId={recipe.id} servings={entry.servings ?? servingsFor(recipe, state)} onChange={() => setSheet('options')} />
       ) : (
         <Card>
-          <p className="text-sm font-medium text-terra-deep">{t('tonight')}</p>
+          <p className="text-sm font-medium text-terra-deep">{mainLabel}</p>
           <OtherNight type={entry?.type ?? 'free'} leftoverId={entry?.leftoverId} />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={() => setSheet('options')}>
@@ -78,6 +83,8 @@ export function Today() {
           </div>
         </Card>
       )}
+
+      {hasPlan && <DayPlan />}
 
       <div className="grid grid-cols-2 gap-3">
         <Button className="min-h-13 whitespace-nowrap" onClick={() => setSheet('options')}>
@@ -150,7 +157,58 @@ export function Today() {
   }
 }
 
-function TonightCard({ recipeId, servings, onChange }: { recipeId: string; servings: number; onChange: () => void }) {
+/** The whole day at a glance: breakfast, lunch, dinner, snack. Extras open the meal picker. */
+function DayPlan() {
+  const { state } = useKitchen()
+  const { t, L } = useT()
+  const text = useMealText()
+  const [meal, setMeal] = useState<MealTarget | null>(null)
+  const date = state.today
+  const entry = state.plan[date]
+  const main = mainSlot(entry)
+  const mainText = () => {
+    const r = entry?.recipeId && state.recipes.find((x) => x.id === entry.recipeId)
+    if (r && entry?.type === 'cook') return L(r.name)
+    return t(`day${(entry?.type ?? 'free').replace(/^./, (c) => c.toUpperCase())}` as StringKey)
+  }
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-olive">{t('todaysPlan')}</p>
+        <MoveMain date={date} />
+      </div>
+      <ul className="mt-2 divide-y divide-sand/60">
+        {SLOTS.map((slot) => {
+          const isMain = slot === main
+          const m = state.meals?.[date]?.[slot]
+          return (
+            <li key={slot}>
+              <button
+                disabled={isMain}
+                onClick={() => setMeal({ date, slot })}
+                className="flex min-h-11 w-full items-center gap-3 text-start"
+              >
+                <span className={cx('w-14 shrink-0 text-sm', isMain ? 'font-semibold text-terra-deep' : 'text-muted')}>{t(SLOT_LABEL[slot])}</span>
+                {isMain ? (
+                  <span className="truncate font-medium">{mainText()}</span>
+                ) : m ? (
+                  <span className="truncate">{text(m)}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-sm text-muted">
+                    <Plus size={14} /> {t('add')}
+                  </span>
+                )}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <MealSheet target={meal} onClose={() => setMeal(null)} />
+    </Card>
+  )
+}
+
+function TonightCard({ label, recipeId, servings, onChange }: { label: string; recipeId: string; servings: number; onChange: () => void }) {
   const { state } = useKitchen()
   const { t, L, list } = useT()
   const recipe = state.recipes.find((r) => r.id === recipeId)!
@@ -159,7 +217,7 @@ function TonightCard({ recipeId, servings, onChange }: { recipeId: string; servi
   const noData = Object.values(state.pantry).every((p) => p.status === 'unknown')
   return (
     <Card>
-      <p className="text-sm font-medium text-terra-deep">{t('tonight')}</p>
+      <p className="text-sm font-medium text-terra-deep">{label}</p>
       <div className="mt-2 flex items-start gap-3">
         <Monogram recipe={recipe} size="lg" />
         <div className="min-w-0 flex-1">

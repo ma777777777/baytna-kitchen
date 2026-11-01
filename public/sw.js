@@ -1,7 +1,7 @@
 // Baytna Kitchen service worker: makes the app open offline.
 // App files: network first, falling back to cache. Hashed assets and fonts: cache first.
 // Supabase API calls are never cached here (the app keeps its own offline copy of data).
-const CACHE = 'baytna-v3'
+const CACHE = 'baytna-v4'
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png']
 
 // Cache the shell plus the hashed JS/CSS that index.html references, so a reload works offline.

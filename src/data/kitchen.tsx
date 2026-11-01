@@ -5,9 +5,9 @@ import { BUILT_IN_RECIPES } from '../domain/recipes'
 import { generateWeek } from '../domain/engine/planner'
 import { usedUpBy } from '../domain/engine/availability'
 import { buildList, changesAfterShopping, type Amount, type ListItem } from '../domain/engine/shopping'
-import { DEFAULT_SETTINGS, type KitchenState } from '../domain/engine/state'
+import { DEFAULT_SETTINGS, mainSlot, type KitchenState } from '../domain/engine/state'
 import type {
-  DayType, Ingredient, Leftover, Member, PantryItem, PlanEntry, Rating, Recipe, Settings, StockStatus,
+  DayType, Ingredient, Leftover, MealEntry, Member, PantryItem, PlanEntry, Rating, Recipe, Settings, Slot, StockStatus,
 } from '../domain/types'
 import type { Repo, SyncStatus } from './repo'
 
@@ -57,6 +57,10 @@ export interface Kitchen {
   draftWeek: (weekStart: string, types: DayType[], keepCooked?: boolean) => void
   /** Returns how many list items the change adds after shopping already started. */
   setEntry: (entry: PlanEntry) => number
+  /** Set or clear one of the day's extra meals. Returns the same count as setEntry. */
+  setMeal: (date: string, slot: Slot, meal: Omit<MealEntry, 'date' | 'slot'> | null) => number
+  /** Move the day's main meal to lunch or dinner (an extra meal already there swaps places). */
+  moveMain: (date: string, to: 'lunch' | 'dinner') => void
   confirmWeek: (weekStart: string) => void
   // shopping
   listFor: (weekStart: string) => ListItem[]
@@ -116,12 +120,19 @@ export function KitchenProvider(props: {
       ;(ratings[data.recipeId] ??= {})[data.memberId] = data.rating
     }
     const members = props.members.length ? props.members : [me]
+    // The 'plan' collection holds main meals keyed by date and extra meals keyed `date|slot`.
+    const planRows = repo.all<PlanEntry | MealEntry>('plan')
+    const meals: NonNullable<KitchenState['meals']> = {}
+    for (const { key, data } of planRows) {
+      if (key.includes('|') && 'slot' in data) (meals[data.date] ??= {})[data.slot] = data
+    }
     const state: KitchenState = {
       today,
       settings,
       recipes,
       pantry: Object.fromEntries(repo.all<PantryItem>('pantry').map((r) => [r.key, r.data])),
-      plan: Object.fromEntries(repo.all<PlanEntry>('plan').map((r) => [r.key, r.data])),
+      plan: Object.fromEntries(planRows.filter((r) => !r.key.includes('|')).map((r) => [r.key, r.data as PlanEntry])),
+      meals,
       ratings,
       leftovers: repo.all<Leftover>('leftover').map((r) => r.data),
       members,
@@ -153,13 +164,18 @@ export function KitchenProvider(props: {
           const e = state.plan[d]
           if (e && (d < today || (keepCooked && e.type !== 'cook'))) locked[d] = e
         }
-        const entries = generateWeek(state, { weekStart: ws, types, seed, locked })
+        // A redraft keeps each day's choice of lunch or dinner for the main meal.
+        const entries = generateWeek(state, { weekStart: ws, types, seed, locked }).map((e) =>
+          state.plan[e.date]?.meal && !e.meal ? { ...e, meal: state.plan[e.date].meal } : e,
+        )
         repo.setMany([
           ...entries.map((e) => ({ collection: 'plan' as const, key: e.date, data: e })),
           { collection: 'week', key: ws, data: { seed } satisfies WeekInfo },
         ])
       },
-      setEntry: (e) => {
+      setEntry: (entry) => {
+        // Keep the day's lunch/dinner choice unless the caller sets it.
+        const e: PlanEntry = 'meal' in entry || !state.plan[entry.date]?.meal ? entry : { ...entry, meal: state.plan[entry.date].meal }
         const ws = weekStartFor(e.date, settings.shopDay)
         const ls = (key: string) => repo.get<ListState>('list_state', `${ws}|${key}`) ?? {}
         // Shopping may already have started: flag anything new, or more than what was ticked.
@@ -169,6 +185,35 @@ export function KitchenProvider(props: {
           ...change.newKeys.map((key) => ({ collection: 'list_state' as const, key: `${ws}|${key}`, data: { ...ls(key), late: true } })),
         ])
         return change.count
+      },
+      setMeal: (date, slot, m) => {
+        const key = `${date}|${slot}`
+        if (!m) {
+          repo.set('plan', key, null)
+          return 0
+        }
+        const entry: MealEntry = { ...m, date, slot }
+        const ws = weekStartFor(date, settings.shopDay)
+        const ls = (k: string) => repo.get<ListState>('list_state', `${ws}|${k}`) ?? {}
+        const change = changesAfterShopping(state, entry, ws, ls)
+        repo.setMany([
+          { collection: 'plan', key, data: entry },
+          ...change.newKeys.map((k) => ({ collection: 'list_state' as const, key: `${ws}|${k}`, data: { ...ls(k), late: true } })),
+        ])
+        return change.count
+      },
+      moveMain: (date, to) => {
+        const cur = state.plan[date]
+        const from = mainSlot(cur)
+        if (from === to) return
+        const rows: { collection: 'plan'; key: string; data: unknown }[] = [
+          { collection: 'plan', key: date, data: { ...(cur ?? { date, type: 'free' }), meal: to } satisfies PlanEntry },
+        ]
+        // Whatever was planned in the target slot moves to the slot the main meal left.
+        const there = state.meals?.[date]?.[to]
+        rows.push({ collection: 'plan', key: `${date}|${to}`, data: null })
+        rows.push({ collection: 'plan', key: `${date}|${from}`, data: there ? { ...there, slot: from } : null })
+        repo.setMany(rows)
       },
       confirmWeek: (ws) => {
         const prev = repo.get<WeekInfo>('week', ws) ?? {}

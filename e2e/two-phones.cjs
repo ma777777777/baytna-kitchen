@@ -103,6 +103,17 @@ async function signIn(page, email, displayName) {
   await B.page.waitForFunction((prev) => document.querySelector('main').innerText !== prev, before, { timeout: 15000 })
   ok('A swaps a dinner; B\'s week updates live')
 
+  // Meals of the day: A writes a breakfast and moves a main meal to lunch; B sees both
+  const note = `Labneh ${run % 1000}`
+  await A.page.getByRole('button', { name: 'Breakfast', exact: true }).last().click()
+  await A.page.locator('[role=dialog]').getByPlaceholder(/just write it/).fill(note)
+  await A.page.locator('[role=dialog]').getByRole('button', { name: 'Save' }).click()
+  await B.page.getByText(note).waitFor({ timeout: 15000 })
+  const lunchBefore = await B.page.getByRole('button', { name: 'Make it dinner' }).count()
+  await A.page.getByRole('button', { name: 'Make it lunch' }).last().click()
+  await B.page.waitForFunction((n) => [...document.querySelectorAll('button')].filter((b) => b.innerText.includes('Make it dinner')).length > n, lunchBefore, { timeout: 15000 })
+  ok('A adds a breakfast and moves a main meal to lunch; B sees both live')
+
   // Scenario 11: B goes offline, ticks an item, it queues, then syncs on reconnect
   await B.page.goto(`${BASE}/#/shop`)
   await A.page.goto(`${BASE}/#/shop`)

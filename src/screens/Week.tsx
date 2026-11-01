@@ -12,6 +12,8 @@ import type { StringKey } from '../i18n/strings'
 import { Monogram, RecipeRow, WhyLine, useIngName, useLateNotice } from '../ui/bits'
 import { Badge, Button, Card, Chip, Sheet, Stepper, cx } from '../ui/kit'
 import { go } from '../ui/router'
+import { mainSlot } from '../domain/engine/state'
+import { ExtraMeals, MealSheet, MoveMain, SLOT_LABEL, type MealTarget } from './Meals'
 
 export const DAY_TYPES: DayType[] = ['cook', 'leftovers', 'takeout', 'away', 'free']
 export const DAY_LABEL: Record<DayType, StringKey> = {
@@ -114,6 +116,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
   const name = useIngName()
   const [swapDate, setSwapDate] = useState<string | null>(null)
   const [typeDate, setTypeDate] = useState<string | null>(null)
+  const [meal, setMeal] = useState<MealTarget | null>(null)
   const shared = sharedIngredients(k.state, dates).filter((s) => !INGREDIENTS[s.id]?.basic).slice(0, 6)
 
   return (
@@ -136,8 +139,15 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
                   {t(DAY_LABEL[e.type])}
                 </button>
               </div>
+              <ExtraMeals date={d} part="before" readOnly={past} onOpen={setMeal} />
+              {(!past || r) && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-terra-deep">{t(SLOT_LABEL[mainSlot(e)])}</span>
+                  {!past && <MoveMain date={d} />}
+                </div>
+              )}
               {r ? (
-                <div className="mt-2 flex items-center gap-3">
+                <div className="mt-1 flex items-center gap-3">
                   <button className="flex min-w-0 flex-1 items-center gap-3 text-start" onClick={() => go(`recipe/${r.id}`)}>
                     <Monogram recipe={r} />
                     <div className="min-w-0">
@@ -173,6 +183,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
                   <Stepper label={t('servings')} value={e.servings ?? r.servings} onChange={(n) => notice(k.setEntry({ ...e, servings: n }))} />
                 </div>
               )}
+              <ExtraMeals date={d} part="after" readOnly={past} onOpen={setMeal} />
             </Card>
           )
         })}
@@ -206,6 +217,7 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
       </Button>
 
       <SwapSheet ws={ws} date={swapDate} onClose={() => setSwapDate(null)} />
+      <MealSheet target={meal} onClose={() => setMeal(null)} />
 
       <Sheet open={!!typeDate} onClose={() => setTypeDate(null)} title={typeDate ? t('setDayType', { day: dayName(typeDate) }) : ''}>
         <div className="grid gap-2">
@@ -219,8 +231,8 @@ function Plan({ ws, entries, dates }: { ws: string; entries: (PlanEntry | undefi
                 const cur = k.state.plan[d]
                 if (dt === 'cook') {
                   const alt = cur?.recipeId ? undefined : alternativesFor(k.state, ws, d, 1)[0]
-                  notice(k.setEntry({ date: d, type: 'cook', recipeId: cur?.recipeId ?? alt?.recipe.id, servings: alt ? servingsFor(alt.recipe, k.state) : cur?.servings }))
-                } else k.setEntry({ date: d, type: dt })
+                  notice(k.setEntry({ date: d, type: 'cook', recipeId: cur?.recipeId ?? alt?.recipe.id, servings: alt ? servingsFor(alt.recipe, k.state) : cur?.servings, meal: cur?.meal }))
+                } else k.setEntry({ date: d, type: dt, meal: cur?.meal })
                 setTypeDate(null)
               }}
             >
@@ -253,7 +265,7 @@ function SwapSheet({ ws, date, onClose }: { ws: string; date: string | null; onC
   if (!date) return null
   const pick = (id: string) => {
     const r = k.state.recipes.find((x) => x.id === id)!
-    notice(k.setEntry({ date, type: 'cook', recipeId: id, servings: servingsFor(r, k.state) }))
+    notice(k.setEntry({ date, type: 'cook', recipeId: id, servings: servingsFor(r, k.state), meal: k.state.plan[date]?.meal }))
     setQ('')
     setBrowse(false)
     onClose()
